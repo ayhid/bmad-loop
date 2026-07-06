@@ -337,9 +337,14 @@ def _render_row(row: dict) -> Text:
 # them to SGR anyway: e.g. XTMODKEYS `CSI > 4 ; 2 m` (modifyOtherKeys, emitted at
 # session start by Claude Code et al.) is read as SGR 4 = underline-on, leaving the
 # whole log underlined until an exit-time disable a live capture never contains.
-# Strip them before pyte sees them; a legitimate SGR carries no marker, so this can
-# only remove non-display sequences (never printable text or genuine styling).
-_PRIVATE_MARKER_SGR = re.compile(rb"\x1b\[[<>=?][0-9;:]*m")
+# Worse, a `?` marker makes pyte set private=True and call SGR with an unexpected
+# `private` kwarg -> TypeError, which ByteStream re-raises and takes the loop down.
+# The marker can sit anywhere in the parameter list (`CSI ? 4 m`, `CSI 4 ; ? 0 m`),
+# and pyte trips on it in any position, so match a marker char at any offset -- not
+# just leading. Strip these before pyte sees them; a legitimate SGR carries no
+# marker char, so this can only remove non-display sequences (never printable text
+# or genuine styling).
+_PRIVATE_MARKER_SGR = re.compile(rb"\x1b\[[0-9;:<>=?]*[<>=?][0-9;:<>=?]*m")
 # Alternate-screen switch sequences (DECSET/DECRST 1049/1047/47). A CLI fullscreen
 # TUI (Claude Code's fullscreen renderer) switches here and repaints in place; pyte
 # has no altscreen buffer, so the capture collapses to the final frame. Detecting

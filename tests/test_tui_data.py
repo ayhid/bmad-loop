@@ -527,6 +527,21 @@ def test_log_view_preserves_legitimate_underline(tmp_path):
     assert "DOWN" not in underlined
 
 
+def test_log_view_strips_private_marker_sgr_marker_not_leading(tmp_path):
+    # A `?` marker anywhere in the params -- not just leading -- makes pyte 0.8.2
+    # set private=True and call select_graphic_rendition(..., private=True), which
+    # raises TypeError (no such kwarg); ByteStream re-raises it and the loop dies.
+    # `CSI 4 ; ? 0 m` slips past a leading-marker-only filter, so read_new() must
+    # not raise and the surrounding text must still render.
+    path = tmp_path / "task.log"
+    path.write_bytes(b"before\x1b[4;?0mafter\r\n")
+    view = data.LogView(path)
+    assert view.read_new() is True
+    line = view.render()
+    assert "before" in line.plain
+    assert "after" in line.plain
+
+
 def test_log_view_strips_private_marker_sgr_split_across_reads(tmp_path):
     # The marker sequence straddles two reads; the held-back trailing CSI lets the
     # filter see it whole on the next read instead of leaking past pyte.
